@@ -1,0 +1,17 @@
+.pageNav{
+    position:fixed;
+    left:10px;
+    bottom:10px;
+    border:1px solid red;
+    border-radius: 10px;
+    background: rgba(255,0,0,.8);
+
+    display:flex;
+    flex-direction:column;
+    
+}
+
+.link{
+    margin: 5px 19px;
+    text-decoration: none;
+}
