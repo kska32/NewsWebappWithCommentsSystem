@@ -1,6 +1,22 @@
+
+//------------------configuration--------------------
+
+    let mongodbSvrPath = "C:/Users/kska3/Desktop/mongodb";//数据库服务器的根目录地址
+    let httpsSvrPort = 8080;//www服务器端口， 
+    
+    //简单的添加新闻，可以用localhost:port/update，只供测试之用
+    //最好用数据库管理工具来后台编辑新增新闻条目和恶意评论，比如：nosqlbooster
+
+
+//---------------------------------------------------
+
+var childProcess = require('child_process'); 
 var express = require('express');
+
+var path = require("path");
 var bodyParser = require("body-parser");
 var myMongoDb = require("./MyMongoDB.js");
+
 
 var app = express();
 const newsNumPerRequest = 2;
@@ -10,27 +26,34 @@ const mongodb = require("mongodb");
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json({limit:"300kb"}));
 
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(async (req,res,next)=>{ 
   req.db = app.get('db');
   next(); 
 });
 
-myMongoDb.start('D:/MongoDB/data/mydb').connectDB((dbColl)=>{
-  app.set('db',dbColl);
-  app.listen(8080, function () {
-    console.log('Example app listening on port 8080!');
-  });
+
+
+myMongoDb.start(mongodbSvrPath).connectDB((dbColl)=>{
+    app.set('db',dbColl);
+    app.listen(httpsSvrPort, function () {
+        console.log('Example app listening on port '+ httpsSvrPort+'!');
+        
+        childProcess.exec('start http://localhost:'+httpsSvrPort+"/update");
+
+        childProcess.exec('start http://localhost:'+httpsSvrPort);
+    });
 });
 
-
-
-app.all('/*', function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header('Access-Control-Allow-Methods', "*");
-  res.header("Access-Control-Allow-Headers", "*");
-  next();
-});
-
+/*
+    app.all('/*', function(req, res, next) {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header('Access-Control-Allow-Methods', "*");
+        res.header("Access-Control-Allow-Headers", "*");
+        next();
+    });
+*/
 //-------------------------------------------------//
 
 const router = express.Router();
@@ -40,6 +63,8 @@ router.get('/',async (req, res)=>{
   //const cc = req.db.collection("news");
   //res.send('Hello World! ' + await cc.countDocuments());
 });
+
+
 
 
 router.post('/news/:newsid',async (req,res)=>{
@@ -198,7 +223,7 @@ router.post('/news/review/:newsid',async (req,res)=>{
 
     //检测提交间隔时间，如果不足指定时间则提前返回。
     let isIllegal = await isIntervalIllegal(req);
-    console.log("is Illegal ?",isIllegal)
+    //console.log("is Illegal ?",isIllegal)
     if(isIllegal) return res.end("SUBMITED_INTERVAL_IS_ILLEGAL");
     //
     
@@ -217,7 +242,7 @@ router.post('/news/review/:newsid',async (req,res)=>{
 
     logVisitors(req,newsid);
 
-    console.log(":newsid....");
+    //console.log(":newsid....");
     //console.log("review. "+newsid,name,review,ip );
     res.end("newsid:"+newsid);
 });
@@ -443,6 +468,52 @@ router.delete("/news/reply/:newsid/:reviewid/:replyid",async (req,res)=>{
 
     res.end(JSON.stringify(result));
 })
+
+
+//后台添加新闻
+//get: /update是用来编辑添加文章，实际运营时建议加密或删除。
+router.post('/update',async function(req, res, next) {
+    //console.log("req.body:",req.body);
+
+    let newsDB = req.db.collection("news");
+    let q = req.body;
+        
+    let r = await newsDB.updateOne(
+          { title:q.title },
+          {
+            $set:{
+              title: q.title, 
+              source: q.source, 
+              timestamp: Date(),
+              content: q.content.replace(/\r\n/gi,"<br>"),
+              reviews:[]
+            }
+          },
+          { upsert:true }
+      );
+    if(r.result.ok==1){
+        res.send(`
+          <html>
+            <body>
+              IT IS VERY OK. <font id="time"></font>
+            </body>
+            <script>
+              let back = ()=>{ window.location.replace("/update") };
+              let timemax = 3;
+              let tid = setInterval(()=>{
+                document.querySelector("#time").innerText = timemax--;
+                if(timemax<0){
+                    clearInterval(tid);
+                    back();
+                }
+              },1000);
+            </script>
+          </html>
+        `);
+    }else{
+      res.send('Error...Sorry. Please Try Again.');
+    }
+});
 
 
 // 检测最后提交评论或回复的时间戳。并返回合法性。

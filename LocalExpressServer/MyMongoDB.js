@@ -1,18 +1,30 @@
 
 const event = require('events');
 const cp = require('child_process');
+const fs = require("fs");
 var MongoClient = require('mongodb').MongoClient;
+const mkdirp = require('mkdirp');
+
 
 class startMongoDB extends event {
-    constructor(dbPath='D:/MongoDB/data/mydb', options){
+    constructor(dbSvrPath='D:/MongoDB', options){
         super(options);
         this.database = null;
-        this.dbPath = dbPath;
+        this.dbSvrPath = dbSvrPath;
+
+        mkdirp(dbSvrPath+'/data/mydb', function(err){
+            if (err) console.error(err)
+        });
+
         this.dbStartup();
     }
 
     dbStartup(){
-        this.database = cp.spawn('mongod', [`--dbpath=${this.dbPath}`]);
+        this.database = cp.spawn(
+            'mongod', 
+            [`--dbpath=${this.dbSvrPath + "/data/mydb"}`], 
+            {env:{path:this.dbSvrPath+'/bin'}}
+        );
         this.database.stdout.on('data', (data) => {
             //console.log("data:",data.toString());
             if(data.indexOf("waiting for connections on port") !== -1){
